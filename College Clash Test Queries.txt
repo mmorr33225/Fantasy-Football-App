@@ -1,0 +1,105 @@
+College Clash Test Queries
+
+Ran on SQL Server Management Studio, Database through SQL Server Express
+Prerequisite: Run College Clash and Start a New Season, Draft Team, Complete the Tournament and View Your Roster
+
+1. Get win count for each team in tournament:
+
+SELECT t.Name, COUNT(tr.MatchID) as Wins
+FROM Teams t
+LEFT JOIN TournamentResults tr ON t.Name = tr.Winner
+GROUP BY t.Name
+ORDER BY Wins DESC;
+
+
+2. Get average player stats by team:
+
+SELECT p.Team, 
+       AVG(p.Speed) as AvgSpeed,
+       AVG(p.Agility) as AvgAgility,
+       AVG(p.Toughness) as AvgToughness,
+       AVG(p.Intelligence) as AvgIntelligence
+FROM Players p
+GROUP BY p.Team;
+
+3. Find each teams stat specialization
+
+SELECT 
+    p.Team,
+    CASE 
+        WHEN AVG(p.Speed) > AVG(p.Agility) AND 
+             AVG(p.Speed) > AVG(p.Toughness) AND 
+             AVG(p.Speed) > AVG(p.Intelligence) THEN 'Speed'
+        WHEN AVG(p.Agility) > AVG(p.Speed) AND 
+             AVG(p.Agility) > AVG(p.Toughness) AND 
+             AVG(p.Agility) > AVG(p.Intelligence) THEN 'Agility'
+        WHEN AVG(p.Toughness) > AVG(p.Speed) AND 
+             AVG(p.Toughness) > AVG(p.Agility) AND 
+             AVG(p.Toughness) > AVG(p.Intelligence) THEN 'Toughness'
+        ELSE 'Intelligence'
+    END as TeamSpecialization,
+    AVG(p.Speed) as AvgSpeed,
+    AVG(p.Agility) as AvgAgility,
+    AVG(p.Toughness) as AvgToughness,
+    AVG(p.Intelligence) as AvgIntelligence
+FROM Players p
+GROUP BY p.Team;
+
+4. Find underdogs who beat favorites throughout the tournament
+
+SELECT 
+    tr.Team1 as Underdog,
+    tr.Team2 as Favorite,
+    tr.Round,
+    t1.AvgStats as UnderdogStats,
+    t2.AvgStats as FavoriteStats,
+    (t2.AvgStats - t1.AvgStats) as StatDifference
+FROM TournamentResults tr
+JOIN (
+    SELECT Team, AVG(Speed + Agility + Toughness + Intelligence) as AvgStats
+    FROM Players
+    GROUP BY Team
+) t1 ON tr.Team1 = t1.Team
+JOIN (
+    SELECT Team, AVG(Speed + Agility + Toughness + Intelligence) as AvgStats
+    FROM Players
+    GROUP BY Team
+) t2 ON tr.Team2 = t2.Team
+WHERE tr.Winner = tr.Team1 
+AND t2.AvgStats > t1.AvgStats
+ORDER BY StatDifference DESC;
+
+
+5. Calculate underdog and favorite win % throughout tournament:
+
+SELECT 
+    CASE 
+        WHEN t1_stats.AvgStats > t2_stats.AvgStats THEN 'Favorite'
+        ELSE 'Underdog'
+    END as PreMatchStatus,
+    COUNT(*) as TotalMatches,
+    SUM(CASE 
+        WHEN (t1_stats.AvgStats > t2_stats.AvgStats AND tr.Winner = tr.Team1) OR
+             (t1_stats.AvgStats < t2_stats.AvgStats AND tr.Winner = tr.Team2) 
+        THEN 1 ELSE 0 
+    END) as ExpectedOutcomes,
+    CAST(SUM(CASE 
+        WHEN (t1_stats.AvgStats > t2_stats.AvgStats AND tr.Winner = tr.Team1) OR
+             (t1_stats.AvgStats < t2_stats.AvgStats AND tr.Winner = tr.Team2) 
+        THEN 1 ELSE 0 
+    END) AS FLOAT) / COUNT(*) * 100 as WinPercentage
+FROM TournamentResults tr
+JOIN (
+    SELECT Team, AVG(Speed + Agility + Toughness + Intelligence) as AvgStats
+    FROM Players GROUP BY Team
+) t1_stats ON tr.Team1 = t1_stats.Team
+JOIN (
+    SELECT Team, AVG(Speed + Agility + Toughness + Intelligence) as AvgStats
+    FROM Players GROUP BY Team
+) t2_stats ON tr.Team2 = t2_stats.Team
+GROUP BY CASE 
+    WHEN t1_stats.AvgStats > t2_stats.AvgStats THEN 'Favorite'
+    ELSE 'Underdog'
+
+
+
